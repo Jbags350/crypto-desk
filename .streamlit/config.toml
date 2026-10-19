@@ -1,0 +1,11 @@
+# Streamlit settings for the Crypto Desk dashboard.
+[server]
+headless = true            # no first-run e-mail prompt; dashboard.bat opens the browser itself
+address = "127.0.0.1"      # only reachable from this PC (use an SSH tunnel on a server)
+port = 8501
+
+[browser]
+gatherUsageStats = false
+
+[client]
+toolbarMode = "minimal"    # hide Streamlit's "Deploy" button (not used here)

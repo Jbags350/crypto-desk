@@ -1,0 +1,24 @@
+# Never copy secrets into the image: docker-compose.yml passes .env in at run time.
+.env
+*.env
+!.env.example
+
+# Runtime data lives in folders shared with the server, not in the image.
+data/
+logs/
+reports/
+
+# Not needed inside the container
+.git/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.hypothesis/
+tests/
+requirements-dev.txt
+*.bat
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

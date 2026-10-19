@@ -1,0 +1,25 @@
+# Secrets - NEVER commit these
+.env
+*.env
+!.env.example
+
+# Runtime data (database, logs, reports, caches). The leading "/" means
+# "only the folder at the top of the project", so the code folder
+# desk/data/ is NOT ignored.
+/data/
+/logs/
+/reports/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.hypothesis/
+*.egg-info/
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

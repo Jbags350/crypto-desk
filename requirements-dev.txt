@@ -1,0 +1,5 @@
+# Everything in requirements.txt plus the testing tools.
+-r requirements.txt
+pytest==9.1.1
+hypothesis==6.168.5
+respx==0.23.1

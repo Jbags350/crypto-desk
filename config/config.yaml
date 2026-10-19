@@ -1,0 +1,327 @@
+# =====================================================================
+#  Crypto Desk settings
+#  - Every trading limit lives in this file. Edit it with Notepad.
+#  - Secrets (API keys) do NOT go here; they go in the .env file.
+#  - The bot checks this file on start-up and refuses to run if a
+#    value is invalid or a setting name is misspelled.
+#  - "pct" means percent: 5.0 means 5%.
+# =====================================================================
+
+# Your local time zone. It decides when a trading "day" starts
+# (daily loss limit, max trades per day, daily summary, tax CSV dates).
+# Set to match this PC (Brisbane, no daylight saving). Other examples:
+# Australia/Sydney, Australia/Melbourne, Australia/Adelaide, Australia/Perth
+timezone: Australia/Brisbane
+
+# ---------------------------------------------------------------------
+# Coins the bot may trade (always against AUD on CoinSpot).
+#   code      = CoinSpot coin code
+#   binance   = Binance symbol used for candles/indicators
+#   kraken    = Kraken AUD pair used if Binance is unreachable
+#   news_aliases = words that link a news headline to this coin
+# ---------------------------------------------------------------------
+coins:
+  - code: BTC
+    binance: BTCUSDT
+    kraken: XBTAUD
+    news_aliases: [bitcoin, btc]
+  - code: ETH
+    binance: ETHUSDT
+    kraken: ETHAUD
+    news_aliases: [ethereum, ether, eth]
+  - code: SOL
+    binance: SOLUSDT
+    kraken: SOLAUD
+    news_aliases: [solana, sol]
+
+# ---------------------------------------------------------------------
+# How often things run
+# ---------------------------------------------------------------------
+schedule:
+  fast_check_seconds: 60        # price check + stop-loss/take-profit checks (no AI)
+  agent_cycle_minutes: 15       # full scanner -> agents -> risk cycle
+  cycle_delay_seconds: 20       # run each cycle this long after the candle closes (fresh candles)
+  news_refresh_minutes: 15
+  daily_summary_time: "23:55"   # local time for the daily P&L message
+  keep_pc_awake: true           # Windows: stop the PC sleeping while the bot runs (screen can still turn off)
+
+# ---------------------------------------------------------------------
+# Market data and "is the data safe to trade on?" checks
+# ---------------------------------------------------------------------
+data:
+  candle_providers: [binance, kraken]   # tried in this order
+  timeframes: [5m, 15m, 1h]
+  candles_per_timeframe: 300
+  max_price_age_seconds: 120            # CoinSpot price older than this = stale
+  max_candle_lag_multiple: 2.5          # newest closed candle older than 2.5x its timeframe = stale
+  max_price_divergence_pct: 1.5         # CoinSpot price vs global price; bigger gap = something is wrong
+  api_error_streak_limit: 3             # this many CoinSpot errors in a row = block new trades
+
+# ---------------------------------------------------------------------
+# Strategy and order type
+#   mode: day    - the original: 15-minute setups, hours-long trades (24h max)
+#         swing  - bigger moves: 1-hour setups, multi-day trades (see swing: below)
+#         trend  - daily trend-following: buy strong uptrends, ride them with a
+#                  wide trailing stop, sit in cash otherwise (see trend: below)
+#   The paper bot runs "day" or "trend" with market orders. "swing" and limit
+#   orders are backtest-only (they lost money in testing; see README).
+#   Trend was the only mode that made money on data it hadn't seen.
+# ---------------------------------------------------------------------
+strategy:
+  mode: trend
+  swing:
+    trend_timeframe: 4h
+    setup_timeframe: 1h
+    trigger_timeframe: 15m
+    stop_atr_multiple: 2.0
+    target_atr_multiple: 5.0
+    trailing_activate_pct: 3.0
+    trailing_distance_pct: 2.0
+    max_hold_hours: 72
+  trend:
+    breakout_days: 20            # buy when the price closes above its highest high of this many days...
+    trend_ema_days: 50           # ...and is above its 50-day average
+    atr_days: 20
+    stop_atr_multiple: 2.0       # stop (and trailing stop) this many daily ATRs below the price (2 tested best)
+    max_hold_days: 120
+    max_stop_distance_pct: 20    # daily stops are wider than intraday ones
+
+execution:
+  entry_order: market            # market = buy at the ask now; limit = wait at the bid (no spread paid)
+  entry_wait_minutes: 15         # limit orders not filled within this time are cancelled
+  take_profit_order: market      # market = sell at the bid; limit = resting sell order at the target
+
+# ---------------------------------------------------------------------
+# Market Scanner (no AI). Decides when a coin is worth asking the AI
+# agents about. Nothing flagged = no AI calls = no AI cost.
+#   trend timeframe   = big picture (is the coin in an uptrend?)
+#   setup timeframe   = where the trade idea comes from
+#   trigger timeframe = fine timing
+# ---------------------------------------------------------------------
+scanner:
+  trend_timeframe: 1h
+  setup_timeframe: 15m
+  trigger_timeframe: 5m
+  setups: [trend_pullback, volume_breakout, oversold_bounce]   # remove any you don't want
+  rsi_period: 14
+  ema_fast: 9
+  ema_mid: 21
+  ema_slow: 50
+  ema_trend: 200
+  macd_fast: 12
+  macd_slow: 26
+  macd_signal: 9
+  atr_period: 14
+  volume_lookback: 20          # volume is compared with the average of this many candles
+  volume_spike_ratio: 2.0      # 2.0 = twice the normal volume
+  pullback_rsi: 40             # trend pullback: RSI dipped below this...
+  oversold_rsi: 30             # oversold bounce: RSI crossed back up through this
+  overbought_rsi: 75           # don't chase breakouts above this RSI
+  breakout_lookback: 20        # breakout = close above the highest high of this many candles
+  pullback_atr_band: 0.75      # "at the EMA" = within 0.75 x ATR of it
+  stop_atr_multiple: 1.5       # suggested stop distance = 1.5 x ATR
+  target_atr_multiple: 3.0     # suggested take-profit distance = 3 x ATR
+
+# ---------------------------------------------------------------------
+# News Analyst
+# ---------------------------------------------------------------------
+news:
+  rss_feeds:
+    - https://www.coindesk.com/arc/outboundfeeds/rss
+    - https://cointelegraph.com/rss
+    - https://decrypt.co/feed
+    - https://bitcoinmagazine.com/feed
+    - https://cryptoslate.com/feed/
+    - https://www.theblock.co/rss.xml
+    - https://cryptonews.com/news/feed/
+  # CryptoPanic is only used if CRYPTOPANIC_TOKEN is set in .env. Their API
+  # is a paid plan; change "growth" if your plan has a different name.
+  cryptopanic_url: https://cryptopanic.com/api/growth/v2/posts/
+  max_age_hours: 12              # ignore older headlines
+  max_headlines_per_coin: 15     # most recent headlines sent to the AI per coin
+  score_cache_minutes: 120       # reuse a coin's score if its headlines haven't changed
+  # Headlines containing these words are marked as possible major events
+  # and highlighted for the AI, which decides if they really are major.
+  event_keywords:
+    hack: [hack, hacked, hacker, exploit, exploited, drained, stolen, breach, rug pull]
+    outage: [outage, halted, halts, suspended, suspends, paused withdrawals, downtime, maintenance]
+    regulation: [sec, lawsuit, sued, ban, banned, crackdown, regulator, regulators, investigation, charged, sanctions]
+    delisting: [delist, delisted, delisting, delists]
+    insolvency: [insolvent, insolvency, bankrupt, bankruptcy, depeg, depegged]
+  # Hack/outage news naming one of these exchanges blocks ALL new trades
+  # straight away, without waiting for the AI.
+  exchange_names: [coinspot]
+
+# ---------------------------------------------------------------------
+# Risk Manager: hard rules with the final veto (used from Stage 4)
+# ---------------------------------------------------------------------
+risk:
+  max_position_pct: 10.0         # max % of portfolio in one trade (you chose 10; the original rule was 5)
+  max_open_positions: 3
+  daily_loss_limit_pct: 3.0      # pause new trades for the rest of the day after this loss
+  max_entries_per_day: 6         # new positions per day (selling is never blocked)
+  max_stop_distance_pct: 5.0     # stop-loss can be at most this far below entry
+  min_reward_risk: 1.5           # (take-profit gain) / (stop-loss loss) must be at least this
+  min_edge_multiple: 3.0         # take-profit gain must be >= 3x the round-trip fees + spread + slippage
+  min_confidence: 60             # Entry Agent confidence (0-100) needed
+  min_order_aud: 10.0
+  major_event_block_hours: 6     # no new trades in a coin for this long after hack/regulation news
+  max_entry_gap_pct: 0.5         # the bot buys at the market price; an AI entry price further than
+                                 # this from CoinSpot's ask means the AI misread the market -> rejected
+
+# ---------------------------------------------------------------------
+# CoinSpot fees. Market orders are 0.1%. The bot never uses
+# instant buy/sell (1%) or CoinSpot's stop/take-profit orders (1%).
+# ---------------------------------------------------------------------
+fees:
+  market_order_pct: 0.1
+  slippage_estimate_pct: 0.05    # expected price slip per order, used by the fee rule
+
+# ---------------------------------------------------------------------
+# Exits that run in code every fast check (used from Stage 3)
+# ---------------------------------------------------------------------
+exits:
+  trailing_activate_pct: 1.0     # start trailing once price is +1% above entry
+  trailing_distance_pct: 0.8     # trailing stop sits 0.8% below the highest price since entry
+  max_hold_hours: 24             # day trading: close anything held longer than this
+  tighten_min_gap_pct: 0.2       # when the Exit Agent raises a stop, it must stay at least this far below the price
+
+# ---------------------------------------------------------------------
+# Paper trading (fake money, used from Stage 5)
+# ---------------------------------------------------------------------
+paper:
+  starting_balance_aud: 10000
+  extra_slippage_pct: 0.02       # extra slip on top of walking the real order book
+
+# ---------------------------------------------------------------------
+# Backtester (Stage 6): replays past prices through the scanner, the
+# Risk Manager and the code exits. The AI agents can't be backtested
+# honestly, so every setup the scanner finds is taken (see README).
+# ---------------------------------------------------------------------
+backtest:
+  days: 180                      # how much history to test (more = slower first download)
+  assumed_spread_pct: 0.2        # CoinSpot's spread isn't recorded historically; 0.03-0.5% seen live
+  slippage_pct: 0.05             # extra price slip on every fill
+  entry_confidence: 65           # stands in for the Entry Agent's confidence
+  candle_cache: data/candles     # downloaded price history is kept here
+
+# ---------------------------------------------------------------------
+# AI agents (Claude). Costs are tracked in US dollars.
+# ---------------------------------------------------------------------
+llm:
+  model: claude-haiku-5-5
+  effort: low                    # low | medium | high; low is cheapest
+  max_tokens: 4000
+  timeout_seconds: 60
+  daily_spend_cap_usd: 1.00      # AI agents switch off for the day after this
+  price_input_per_mtok_usd: 0.10   # Claude Haiku 5.5 price per million input tokens
+  price_output_per_mtok_usd: 0.50  # ... per million output tokens
+
+# ---------------------------------------------------------------------
+# Live trading safety (Stage 9). Only used when LIVE_TRADING=true in .env
+# ---------------------------------------------------------------------
+live:
+  max_capital_aud: 200           # the bot may only use this much of your account
+  entry_fill_timeout_seconds: 60 # cancel an unfilled buy after this long
+  exit_reprice_seconds: 20       # lower an unfilled sell's price this often
+  max_exit_slippage_pct: 2.0     # never sell more than this far below the stop price without alerting
+
+# ---------------------------------------------------------------------
+# Watchdog (Stage 8): a separate small program that messages you on
+# Telegram if the bot stops working. Runs automatically with Docker;
+# on Windows run watchdog.bat alongside paper.bat if you want it.
+# ---------------------------------------------------------------------
+watchdog:
+  alert_after_minutes: 10        # no price check for this long = alert
+  repeat_alert_minutes: 60       # remind you this often while it's still down
+  check_every_seconds: 60
+
+# ---------------------------------------------------------------------
+# Prop firm ("funded account") trading. When enabled is true the bot trades
+# the prop account(s) instead of CoinSpot. Researched for the Tradeify 247
+# 2-Step (see README section 13 and prop_research.bat).
+#   broker: paper   = a simulated Tradeify 247 account with their real costs
+#                     (no account or keys needed)
+#           dxtrade = your real Tradeify 247 account(s); needs the DXTRADE_*
+#                     lines in .env
+#   phase:  "1" (+10% target), "2" (+5%), or "funded" (no target). When a
+#           phase target is reached the bot closes everything and stops
+#           trading that account. Change this after Tradeify moves you on.
+# ---------------------------------------------------------------------
+prop:
+  enabled: true                  # true = prop mode (the CoinSpot trend bot is off)
+  broker: dxtrade                # your real Tradeify 247 account (paper = simulated)
+  firm: tradeify_2step
+  account_size: 10000            # US$; must match the account you bought (2-Step $10K)
+  phase: "1"
+  paper_accounts: 1              # how many simulated accounts (broker: paper)
+  symbols:                       # coin -> Tradeify 247 symbol
+    BTC: BTC/USD
+    ETH: ETH/USD
+    XRP: XRP/USD
+    BNB: BNB/USD
+    SOL: SOL/USD
+    TRX: TRX/USD
+    DOGE: DOGE/USD
+    LINK: LINK/USD
+    ZEC: ZEC/USD
+  price_symbols:                 # coin -> Binance symbol (prices the decisions are based on)
+    BTC: BTCUSDT
+    ETH: ETHUSDT
+    XRP: XRPUSDT
+    BNB: BNBUSDT
+    SOL: SOLUSDT
+    TRX: TRXUSDT
+    DOGE: DOGEUSDT
+    LINK: LINKUSDT
+    ZEC: ZECUSDT
+  quantity_step:                 # order size steps for the simulated account (the real one reads
+    BTC: 0.01                    # them from the platform: Tradeify 247 uses 0.01 for every coin)
+    ETH: 0.01
+    XRP: 0.01
+    BNB: 0.01
+    SOL: 0.01
+    TRX: 0.01
+    DOGE: 0.01
+    LINK: 0.01
+    ZEC: 0.01
+  news_aliases:                  # words that link a headline to a coin (for the AI review)
+    BTC: [bitcoin, btc]
+    ETH: [ethereum, ether, eth]
+    XRP: [xrp, ripple]
+    BNB: [bnb, binance coin]
+    SOL: [solana, sol]
+    TRX: [tron, trx]
+    DOGE: [dogecoin, doge]
+    LINK: [chainlink]
+    ZEC: [zcash, zec]
+  strategy:                      # the tested "rotation" (don't change without re-running prop_research.bat)
+    lookback_hours: 336          # strength = return over the last 2 weeks
+    top: 2                       # hold the 2 strongest coins (faster to pass than 3 in testing; 11 Oct 2026)
+    stop_atr_days: 2.5           # stop / trailing stop 2.5 daily ATRs away
+    regime_coin: BTC             # only buy while Bitcoin is above its 50-day average
+    rebalance_hour_utc: 0        # decide once a day at 00:00 UTC (10:00 Brisbane)
+  risk:
+    risk_pct: 1.5                # lose 1.5% of the account size if a stop is hit (challenge setting;
+                                 # go back to top 3 / 1.0% once funded: it essentially never lost the account)
+    max_positions: 4
+    max_same_side: 3
+    daily_brake_pct: 2.0         # close everything and rest until 22:00 UTC at -2% on the day (firm limit: 3%)
+    floor_scaling: true          # trade smaller as the account nears the 6% max-loss floor
+    margin_use: 0.9
+  ai_review: shadow              # off | shadow (AI gives an opinion, logged, never blocks) | veto (AI can block)
+  payout_alert_usd: 1000         # funded: tell me when this much profit can be withdrawn
+
+# ---------------------------------------------------------------------
+# Logs (rotated so the disk never fills up)
+# ---------------------------------------------------------------------
+logging:
+  level: INFO
+  file_max_mb: 10
+  file_backups: 5
+
+# Where files are kept (relative to the project folder)
+paths:
+  database: data/desk.db
+  logs: logs
+  reports: reports

@@ -1,0 +1,13 @@
+# Runtime dependencies (what the bot needs to run).
+# Versions are pinned so your PC and the server run identical code.
+anthropic==1.12.1
+httpx==0.28.1
+pydantic==2.14.0
+PyYAML==6.0.3
+python-dotenv==1.2.4
+pandas==3.0.6
+numpy==2.5.3
+feedparser==6.0.14
+streamlit==1.65.0
+plotly==7.1.0
+tzdata==2026.5

@@ -1,0 +1,56 @@
+# Crypto Desk on a server (or any PC with Docker). See README section 12.
+#
+#   docker compose up -d --build     start everything (and after updating the code)
+#   docker compose ps                is it running? is the bot "healthy"?
+#   docker compose logs -f bot       watch the bot (Ctrl+C stops watching, not the bot)
+#   docker compose stop              stop everything (the watchdog won't raise an alarm)
+#
+# Three containers share the data/ folder (the database):
+#   bot        the trading bot. Restarts by itself if it crashes or hangs,
+#              and after the server reboots.
+#   watchdog   messages you on Telegram if the bot stops checking prices
+#   dashboard  web page, ONLY reachable from the server itself: open it from
+#              your PC through an SSH tunnel (README), never expose it publicly
+
+x-desk: &desk
+  image: crypto-desk:latest        # built once by the bot service, shared by all three
+  env_file: .env                   # your keys; never copied into the image
+  init: true                       # passes "stop" signals through properly
+  restart: unless-stopped          # comes back after crashes and reboots
+  volumes:
+    - ./data:/app/data             # database + price history: survives rebuilds
+    - ./logs:/app/logs
+    - ./reports:/app/reports
+    - ./config:/app/config:ro      # edit config.yaml here, then: docker compose restart
+    - ./prompts:/app/prompts:ro
+  logging:                         # Docker's own logs: at most 5 x 10 MB per container
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
+services:
+  bot:
+    <<: *desk
+    build: .
+    command: ["python", "-m", "desk.main"]
+    stop_grace_period: 90s         # time to finish the current step on "stop"
+    healthcheck:
+      test: ["CMD", "python", "-m", "desk.healthcheck"]
+      interval: 60s
+      timeout: 20s
+      start_period: 3m
+      retries: 3
+
+  watchdog:
+    <<: *desk
+    pull_policy: never             # uses the image the bot service builds
+    command: ["python", "-m", "desk.watchdog"]
+
+  dashboard:
+    <<: *desk
+    pull_policy: never
+    command: ["python", "-m", "streamlit", "run", "dashboard/app.py",
+              "--server.address=0.0.0.0", "--server.port=8501"]
+    ports:
+      - "127.0.0.1:8501:8501"      # 127.0.0.1 = not reachable from the internet
